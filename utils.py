@@ -4,8 +4,8 @@ import os
 import shutil 
 import pandas as pd
 import numpy as np 
-   
-
+from dateutil.parser import parse
+import nibabel as nib 
 
 def DICOM_CONVERT(Base_path, contour_names, associations):
 
@@ -23,7 +23,8 @@ def DICOM_CONVERT(Base_path, contour_names, associations):
 
 
     # for catching patients which didnt work
-    file = open("RTSTRUCT_conversion_log.txt", mode="w")
+    RTSTRUCT_conversion_log = open("RTSTRUCT_conversion_log.txt", mode="w")
+
 
     patient_folders = os.listdir(Base_path)
 
@@ -32,7 +33,7 @@ def DICOM_CONVERT(Base_path, contour_names, associations):
 
         # indefies the number of unique series UID images within the patient specific folder
         dicom_Reader = DicomReaderWriter()
-        dicom_Reader.walk_through_folders(patient_path)#
+        dicom_Reader.walk_through_folders(os.path.join(Base_path, patient_path))
         indexes = dicom_Reader.images_dictionary
 
         # records the path of slices for each unique series UID
@@ -59,7 +60,7 @@ def DICOM_CONVERT(Base_path, contour_names, associations):
             
             # creates folders within the patient folder for saving images
             # see above for exact folder architecture which is stored 
-            image_folder = patient_path + '/'+filename_prefix + '_' + series_date + '/'
+            image_folder = Base_path + '/' + patient_path + '/'+filename_prefix + '_' + series_date + '/'
             if not os.path.exists(image_folder):
                 os.mkdir(image_folder)
             dicom_folder =  image_folder + '/DICOM/'
@@ -93,9 +94,9 @@ def DICOM_CONVERT(Base_path, contour_names, associations):
                 for i, contour_name in enumerate(contour_names):
 
                     dicom_Reader.set_contour_names_and_associations(contour_names=[contour_name], associations=[ROIAssociationClass(contour_name, associations[i])])
-                    path = dicom_Reader.where_is_ROI()
-                    print('-----')
-                    print(path)
+                    #path = dicom_Reader.where_is_ROI()
+                    #print('-----')
+                    #print(path)
                     dicom_Reader.get_mask()
 
                     #load mask
@@ -114,11 +115,12 @@ def DICOM_CONVERT(Base_path, contour_names, associations):
                 # which start with 'BIN_' and end in '.nii.gz'
                 # if not it writes the failed patients and imgs into a file
                 if len([name for name in os.listdir(structures_path) if (os.path.isfile(os.path.join(structures_path, name)) & name.startswith('BIN_') & name.endswith('.nii.gz'))]) < len(contour_names):
-                    file.write(str(Base_path))
+                    RTSTRUCT_conversion_log.write(str(Base_path))
+
 
     # if no conversions failed you note this down too 
     if os.path.getsize("RTSTRUCT_conversion_log.txt") == 0:
-        file.write('No failed conversions.')
+        RTSTRUCT_conversion_log.write('No failed conversions.')
 
 
 def get_contour_names_and_associations(path):
@@ -136,5 +138,55 @@ def get_contour_names_and_associations(path):
     associations = np.transpose(contour_names_excel.to_numpy()).tolist()
 
     return contour_names, associations
+
+
+def check_DICOM_conversions(Base_path):
+
+    patient_folders = os.listdir(Base_path)
+    print(patient_folders)
+
+    # for catching patients which didnt work
+    DICOM_conversion_log = open("DICOM_conversion_log.txt", mode="w")
+
+    for patient_folder in patient_folders:
+
+
+        path_containers = os.listdir(os.path.join(Base_path, patient_folder))
+
+        print(path_containers)
+
+        for path in path_containers:
+
+            if (path[0:5] == 'CBCT_') & os.path.exists(os.path.join(path, 'NIFTI')):
+                if len(os.listdir(os.path.join(path, 'NIFTI'))) == 0:
+                    DICOM_conversion_log.write('CBCT conversion failed: ' + str(path))
+
+            if (path[0:3] == 'CT_') & (os.path.exists(os.path.join(path, 'NIFTI'))):
+                if (len(os.listdir(os.path.join(path, 'NIFTI')))) == 0:
+                    DICOM_conversion_log.write('CT conversion failed: ' + str(path))
+
+            # delete any empty old folders 
+            #if len(os.listdir(os.path.join(Base_path, os.path.join(patient_folder, path)))) == 0:
+            #    os.remove(os.path.join(Base_path, os.path.join(patient_folder, path)))
+
+            # check if the string in the folder name can be interpreted as a date 
+            if path[0:5] == 'CBCT_' or path[0:3] == 'CT_':
+                try:
+                    parse(path[-8:], fuzzy=False)
+                except:
+                    DICOM_conversion_log.write('Date is not interpretable: ' + str(path))
+            
+
+
+def get_image_objects(path):
+
+    nifti_obj = nib.load(path)
+    nifti_img = nifti_obj.get_fdata()
+    nifti_affine = nifti_obj.affine
+    nifti_header = nifti_obj.header
+
+    del nifti_obj
+
+    return nifti_img, nifti_affine, nifti_header
 
 

@@ -28,3 +28,6 @@ contour_names, associations = get_contour_names_and_associations(hn_contournames
 
 #do the conversion 
 DICOM_CONVERT(Base_path, contour_names, associations)
+
+# check the dicom conversions have worked 
+check_DICOM_conversions(Base_path)

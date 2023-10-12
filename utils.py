@@ -77,7 +77,7 @@ def DICOM_CONVERT(Base_path, contour_names, associations):
             dicom_sitk_handle = dicom_Reader.dicom_handle
             sitk.WriteImage(dicom_sitk_handle, filename)    
 
-            # moves old nifti files into the DICOM folder 
+            # moves old dicom files into the DICOM folder 
             for dicom_slice_index, dicom_slice in enumerate(dicom_slices_path[img_index]):
 
                 source = dicom_slice
